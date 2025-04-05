@@ -1,10 +1,16 @@
-import requests
+import asyncio
+from aiogram import Bot, Dispatcher
+from aiogram.types import Message
+from aiogram.filters import CommandStart
+
 from environs import env
 import httpx
 
+dp = Dispatcher()
 
-def main():
-    env.read_env()
+
+@dp.message(CommandStart())
+async def cmd_start(message: Message):
     url = 'https://dvmn.org/api/long_polling/'
     headers = {
         'Authorization': f'Token {env('DEVMAN_TOKEN')}',
@@ -13,29 +19,40 @@ def main():
     payload = {}
     timestamp = None
     while True:
-
         try:
-            response = requests.get(url, headers=headers, params=payload)
-            response.raise_for_status()
-            response = response.json()
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, params=payload, timeout=100)
+                response.raise_for_status()
+                response = response.json()
 
-        except requests.exceptions.ReadTimeout:
-            response = requests.get(url, headers=headers, params=payload)
-        except requests.exceptions.ConnectionError:
-            response = requests.get(url, headers=headers, params=payload)
-
+        except httpx.ReadTimeout:
+            continue
+        except httpx.ConnectError:
+            continue
 
         if response.get('last_attempt_timestamp'):
             timestamp = response['last_attempt_timestamp']
+
         if response.get('timestamp_to_request'):
             timestamp = response['timestamp_to_request']
+
+        if response.get('new_attempts'):
+            text_message = 'У вас проверили работу: '
+            work = response['new_attempts'][0]['lesson_title']
+            lesson_url = response['new_attempts'][0]['lesson_url']
+            if response['new_attempts'][0]['is_negative']:
+                await message.answer(
+                    text=f'{text_message} "{work}". \n\n {lesson_url} \n\n Работа не прошла проверку!')
+            else:
+                await message.answer(text=f'{text_message} "{work}". \n\n {lesson_url} \n\n Работа прошла проверку!')
         payload = {'timestamp': timestamp}
-        print('___________________________')
-        print(timestamp)
 
 
-        print(response)
+async def main():
+    env.read_env()
+    bot = Bot(token=env('TG_TOKEN'))
+    await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
