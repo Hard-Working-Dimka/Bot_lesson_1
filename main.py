@@ -1,33 +1,30 @@
 import asyncio
+import time
+
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import CommandStart
+import requests
 
 from environs import env
-import httpx
 
 dp = Dispatcher()
 
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    url = 'https://dvmn.org/api/long_polling/'
-    headers = {
-        'Authorization': f'Token {env('DEVMAN_TOKEN')}',
-    }
-
     payload = {}
     timestamp = None
     while True:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers, params=payload, timeout=100)
-                response.raise_for_status()
-                response = response.json()
+            response = requests.get(url, headers=headers, params=payload)
+            response.raise_for_status()
+            response = response.json()
 
-        except httpx.ReadTimeout:
+        except requests.exceptions.ReadTimeout:
             continue
-        except httpx.ConnectError:
+        except requests.exceptions.ConnectionError:
+            time.sleep(90)
             continue
 
         if response.get('last_attempt_timestamp'):
@@ -48,11 +45,17 @@ async def cmd_start(message: Message):
         payload = {'timestamp': timestamp}
 
 
-async def main():
-    env.read_env()
-    bot = Bot(token=env('TG_TOKEN'))
+async def main(token):
+    bot = Bot(token=token)
     await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    env.read_env()
+    tg_token = env('TG_TOKEN')
+    url = 'https://dvmn.org/api/long_polling/'
+    headers = {
+        'Authorization': f'Token {env('DEVMAN_TOKEN')}',
+    }
+
+    asyncio.run(main(tg_token))
