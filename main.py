@@ -45,10 +45,6 @@ async def cmd_start(message: Message):
         payload = {'timestamp': timestamp}
 
 
-async def start_bot(bot):
-    await dp.start_polling(bot)
-
-
 if __name__ == '__main__':
     env.read_env()
     tg_token = env('TG_TOKEN')
@@ -57,4 +53,4 @@ if __name__ == '__main__':
         'Authorization': f'Token {env('DEVMAN_TOKEN')}',
     }
     bot = Bot(token=tg_token)
-    asyncio.run(start_bot(bot))
+    asyncio.run(dp.start_polling(bot))
