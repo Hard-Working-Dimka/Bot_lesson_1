@@ -1,5 +1,6 @@
 import asyncio
 import time
+import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
@@ -53,4 +54,8 @@ if __name__ == '__main__':
         'Authorization': f'Token {env('DEVMAN_TOKEN')}',
     }
     bot = Bot(token=tg_token)
+
+    logging.basicConfig(level=logging.DEBUG)
+    logging.info('Bot started!')
+
     asyncio.run(dp.start_polling(bot))
