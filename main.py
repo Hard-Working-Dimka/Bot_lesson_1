@@ -25,42 +25,48 @@ class MyLogsHandler(logging.Handler):
 
 @bot_dispatcher.message(CommandStart())
 async def cmd_start(message: Message):
-    payload = {}
-    timestamp = None
-    while True:
-        try:
-            response = requests.get(url, headers=headers, params=payload)
-            response.raise_for_status()
-            response = response.json()
+    try:
+        payload = {}
+        timestamp = None
+        while True:
+            try:
+                response = requests.get(url, headers=headers, params=payload)
+                response.raise_for_status()
+                response = response.json()
 
-        except requests.exceptions.ReadTimeout:
-            continue
-        except requests.exceptions.ConnectionError:
-            time.sleep(90)
-            continue
+            except requests.exceptions.ReadTimeout:
+                logger.warning('No response was received from the server in the expected time.')
+                continue
+            except requests.exceptions.ConnectionError:
+                logger.warning('Internet connection lost.')
+                time.sleep(90)
+                continue
 
-        if response.get('last_attempt_timestamp'):
-            timestamp = response['last_attempt_timestamp']
+            if response.get('last_attempt_timestamp'):
+                timestamp = response['last_attempt_timestamp']
 
-        if response.get('timestamp_to_request'):
-            timestamp = response['timestamp_to_request']
+            if response.get('timestamp_to_request'):
+                timestamp = response['timestamp_to_request']
 
-        if response.get('new_attempts'):
-            text_message = 'У вас проверили работу: '
-            work = response['new_attempts'][0]['lesson_title']
-            lesson_url = response['new_attempts'][0]['lesson_url']
-            if response['new_attempts'][0]['is_negative']:
-                await message.answer(
-                    text=f'{text_message} "{work}". \n\n {lesson_url} \n\n Работа не прошла проверку!')
-            else:
-                await message.answer(text=f'{text_message} "{work}". \n\n {lesson_url} \n\n Работа прошла проверку!')
-        payload = {'timestamp': timestamp}
+            if response.get('new_attempts'):
+                text_message = 'У вас проверили работу: '
+                work = response['new_attempts'][0]['lesson_title']
+                lesson_url = response['new_attempts'][0]['lesson_url']
+                if response['new_attempts'][0]['is_negative']:
+                    await message.answer(
+                        text=f'{text_message} "{work}". \n\n {lesson_url} \n\n Работа не прошла проверку!')
+                else:
+                    await message.answer(
+                        text=f'{text_message} "{work}". \n\n {lesson_url} \n\n Работа прошла проверку!')
+            payload = {'timestamp': timestamp}
+    except Exception as error:
+        logger.error(error, exc_info=True)
 
 
 async def start_bots():
     task_bot = asyncio.create_task(bot_dispatcher.start_polling(bot))
     task_dev_bot = asyncio.create_task(dev_bot_dispatcher.start_polling(dev_bot))
-    logger.info('Bot started.')
+    logger.info('Bot is running.')
     await task_bot
     await task_dev_bot
 
@@ -73,12 +79,12 @@ if __name__ == '__main__':
         'Authorization': f'Token {env('DEVMAN_TOKEN')}',
     }
     dev_tg_token = env('DEV_TG_TOKEN')
+    chat_id = env('CHAT_ID')
 
     bot = Bot(token=tg_token)
     dev_bot = Bot(token=dev_tg_token)
 
     logger = logging.getLogger(__name__)
     logger.setLevel(level=logging.DEBUG)
-    logger.addHandler(MyLogsHandler(dev_bot, chat_id=5316948794))
-
+    logger.addHandler(MyLogsHandler(dev_bot, chat_id=chat_id))
     asyncio.run(start_bots())
