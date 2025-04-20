@@ -9,11 +9,34 @@ import requests
 
 from environs import env
 
-dp = Dispatcher()
+env.read_env()
+tg_token = env('TG_TOKEN')
+url = 'https://dvmn.org/api/long_polling/'
+headers = {
+    'Authorization': f'Token {env('DEVMAN_TOKEN')}',
+}
+dev_tg_token = env('DEV_TG_TOKEN')
+
+bot = Bot(token=tg_token)
+dp1 = Dispatcher()
+
+dev_bot = Bot(token=dev_tg_token)
+dp2 = Dispatcher()
 
 
-@dp.message(CommandStart())
+class MyLogsHandler(logging.Handler):
+    async def emit(self, record):
+        await dev_bot.send_message(5316948794, 'привет!')
+
+
+logger = logging.getLogger('bot')
+logger.setLevel(level=logging.DEBUG)
+logger.addHandler(MyLogsHandler())
+
+
+@dp1.message(CommandStart())
 async def cmd_start(message: Message):
+    logger.info("Я новый логер!")
     payload = {}
     timestamp = None
     while True:
@@ -46,16 +69,12 @@ async def cmd_start(message: Message):
         payload = {'timestamp': timestamp}
 
 
+async def start_bots():
+    # await asyncio.gather(dp1.start_polling(bot), dp2.start_polling(dev_bot))
+    task_bot1 = asyncio.create_task(dp1.start_polling(bot))
+    task_bot2 = asyncio.create_task(dp2.start_polling(dev_bot))
+    await task_bot1
+    await task_bot2
+
 if __name__ == '__main__':
-    env.read_env()
-    tg_token = env('TG_TOKEN')
-    url = 'https://dvmn.org/api/long_polling/'
-    headers = {
-        'Authorization': f'Token {env('DEVMAN_TOKEN')}',
-    }
-    bot = Bot(token=tg_token)
-
-    logging.basicConfig(level=logging.DEBUG)
-    logging.info('Bot started!')
-
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(start_bots())
