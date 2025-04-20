@@ -38,7 +38,7 @@ async def cmd_start(message: Message):
                 logger.warning('No response was received from the server in the expected time.')
                 continue
             except requests.exceptions.ConnectionError:
-                logger.warning('Internet connection lost.')
+                logging.warning('Internet connection lost.')
                 time.sleep(90)
                 continue
 
