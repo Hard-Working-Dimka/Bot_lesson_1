@@ -6,37 +6,25 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import CommandStart
 import requests
-
 from environs import env
 
-env.read_env()
-tg_token = env('TG_TOKEN')
-url = 'https://dvmn.org/api/long_polling/'
-headers = {
-    'Authorization': f'Token {env('DEVMAN_TOKEN')}',
-}
-dev_tg_token = env('DEV_TG_TOKEN')
-
-bot = Bot(token=tg_token)
-dp1 = Dispatcher()
-
-dev_bot = Bot(token=dev_tg_token)
-dp2 = Dispatcher()
+bot_dispatcher = Dispatcher()
+dev_bot_dispatcher = Dispatcher()
 
 
 class MyLogsHandler(logging.Handler):
-    async def emit(self, record):
-        await dev_bot.send_message(5316948794, 'привет!')
+    def __init__(self, tg_bot, chat_id):
+        super().__init__()
+        self.chat_id = chat_id
+        self.tg_bot = tg_bot
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        asyncio.create_task(self.tg_bot.send_message(self.chat_id, log_entry))
 
 
-logger = logging.getLogger('bot')
-logger.setLevel(level=logging.DEBUG)
-logger.addHandler(MyLogsHandler())
-
-
-@dp1.message(CommandStart())
+@bot_dispatcher.message(CommandStart())
 async def cmd_start(message: Message):
-    logger.info("Я новый логер!")
     payload = {}
     timestamp = None
     while True:
@@ -70,11 +58,27 @@ async def cmd_start(message: Message):
 
 
 async def start_bots():
-    # await asyncio.gather(dp1.start_polling(bot), dp2.start_polling(dev_bot))
-    task_bot1 = asyncio.create_task(dp1.start_polling(bot))
-    task_bot2 = asyncio.create_task(dp2.start_polling(dev_bot))
-    await task_bot1
-    await task_bot2
+    task_bot = asyncio.create_task(bot_dispatcher.start_polling(bot))
+    task_dev_bot = asyncio.create_task(dev_bot_dispatcher.start_polling(dev_bot))
+    logger.info('Bot started.')
+    await task_bot
+    await task_dev_bot
+
 
 if __name__ == '__main__':
+    env.read_env()
+    tg_token = env('TG_TOKEN')
+    url = 'https://dvmn.org/api/long_polling/'
+    headers = {
+        'Authorization': f'Token {env('DEVMAN_TOKEN')}',
+    }
+    dev_tg_token = env('DEV_TG_TOKEN')
+
+    bot = Bot(token=tg_token)
+    dev_bot = Bot(token=dev_tg_token)
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(level=logging.DEBUG)
+    logger.addHandler(MyLogsHandler(dev_bot, chat_id=5316948794))
+
     asyncio.run(start_bots())
